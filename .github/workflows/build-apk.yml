@@ -27,12 +27,26 @@ jobs:
           import tarfile
           from pathlib import Path
 
-          encoded = "".join(
+          expected_parts = [
+              "d0fe40a60a431d3c3208a0cc3384b2b9a1be042fb95bf6096a77f4e52bac0815",
+              "6b3db838ff980925555b0d3b6f2e43dbcf1386143b45b046b23e0a8a157750ac",
+              "2e031a8d500932d83d520055807b4a7420462bb7927de0b3d800fb575556f288",
+              "45d4ce9882cc56ae89142d6307a849db26a542c7b8b0d36243f1a7fa91748e97",
+              "239254e57cd8f0d3371dc4becad4a7e813d8eb0c2e40bc4670e945db4fd4a5c0",
+              "4bb05af022aca965e2abf9f448bc4b5e363f20bdd1cba2f0f6d9ec4467223c0c",
+          ]
+          parts = [
               (Path("source_parts") / f"{i:02d}.b64").read_text(encoding="utf-8").strip()
               for i in range(6)
-          )
+          ]
+          for i, (part, expected_part) in enumerate(zip(parts, expected_parts)):
+              actual_part = hashlib.sha256(part.encode("utf-8")).hexdigest()
+              print(f"Source part {i:02d}: length={len(part)}, sha256={actual_part}")
+              if actual_part != expected_part:
+                  raise SystemExit(f"Source part {i:02d} is corrupted")
+          encoded = "".join(parts)
           archive = base64.b64decode(encoded, validate=True)
-          expected = "e49567fbad91a5325b6ab70482f2e08f5f1e1233eab09186a56dbb05b83c3d5f"
+          expected = "793f44ef3b318f65ab40c3ebfa2fa396c56adf2d58ce456375611545c01caea3"
           actual = hashlib.sha256(archive).hexdigest()
           if actual != expected:
               raise SystemExit(f"Source archive checksum mismatch: {actual}")

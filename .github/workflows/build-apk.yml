@@ -1,0 +1,92 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Restore Flutter source archive
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import bz2
+          import hashlib
+          import io
+          import tarfile
+          from pathlib import Path
+
+          encoded = "".join(
+              (Path("source_parts") / f"{i:02d}.b64").read_text(encoding="utf-8").strip()
+              for i in range(6)
+          )
+          archive = base64.b64decode(encoded, validate=True)
+          expected = "793f44ef3b318f65ab40c3ebfa2fa396c56adf2d58ce456375611545c01caea3"
+          actual = hashlib.sha256(archive).hexdigest()
+          if actual != expected:
+              raise SystemExit(f"Source archive checksum mismatch: {actual}")
+
+          unpacked = bz2.decompress(archive)
+          allowed = {
+              "pubspec.yaml",
+              "lib/main.dart",
+              "lib/screens_a.dart",
+              "lib/screens_b.dart",
+              "lib/data.dart",
+              "lib/widgets.dart",
+          }
+          with tarfile.open(fileobj=io.BytesIO(unpacked), mode="r:") as tf:
+              members = tf.getmembers()
+              names = {m.name for m in members}
+              if names != allowed:
+                  raise SystemExit(f"Unexpected source archive contents: {sorted(names)}")
+              for member in members:
+                  if not member.isfile():
+                      raise SystemExit(f"Unexpected non-file entry: {member.name}")
+                  tf.extract(member, path=".")
+
+          print("Flutter source restored and checksum verified.")
+          PY
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        run: flutter create --platforms=android --org com.torikul --project-name money_management .
+
+      - name: Set application name
+        run: sed -i 's/android:label="[^"]*"/android:label="Money Management"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: money-management-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30

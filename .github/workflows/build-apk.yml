@@ -32,7 +32,7 @@ jobs:
               for i in range(6)
           )
           archive = base64.b64decode(encoded, validate=True)
-          expected = "793f44ef3b318f65ab40c3ebfa2fa396c56adf2d58ce456375611545c01caea3"
+          expected = "e49567fbad91a5325b6ab70482f2e08f5f1e1233eab09186a56dbb05b83c3d5f"
           actual = hashlib.sha256(archive).hexdigest()
           if actual != expected:
               raise SystemExit(f"Source archive checksum mismatch: {actual}")
